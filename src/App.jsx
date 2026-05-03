@@ -4,6 +4,7 @@ import { UserCircle, Users } from 'lucide-react';
 import { PROMPTS } from './prompts';
 import CandidateView from './components/CandidateView';
 import HRDashboard from './components/HRDashboard';
+import { aiApi } from './services/api';
 
 function App() {
   const [baselineData, setBaselineData] = useState(null);
@@ -11,22 +12,28 @@ function App() {
   const [liveEmotions, setLiveEmotions] = useState([]);
   const [activeView, setActiveView] = useState('candidate');
 
-  // وظيفة التعامل مع انتهاء الأسئلة النفسية وإرسالها لـ Gemini
+  // Send pre-interview answers to Java backend for AI analysis (Lingua → Anthropic → DeepL)
   const handleBaselineComplete = async (answers) => {
     try {
-      const response = await fetch('http://localhost:5000/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: PROMPTS.PRE_INTERVIEW_ANALYSIS,
-          userData: answers // الإجابة التي كتبها المتقدم
-        })
-      });
+      // Convert the raw answers to a readable text block for the AI to analyze
+      const textToAnalyze = Object.entries(answers.rawAnswers || answers)
+        .map(([key, val]) => `${key}: ${val}`)
+        .join('\n');
 
-      const result = await response.json();
-      setBaselineData(result); // الآن ستظهر البيانات في الـ HR Dashboard
+      const result = await aiApi.analyze(textToAnalyze, 'English', 'EN-US');
+      setBaselineData({
+        state: answers.state || 'Unknown',
+        readinessScore: answers.readinessScore || 5,
+        hrIcebreakerTip: answers.hrIcebreakerTip || '',
+        emotions: result.emotions,
+        detectedLanguage: result.detectedLanguage,
+        translatedText: result.translatedText,
+        historyId: result.historyId,
+      });
     } catch (error) {
-      console.error("Connection failed:", error);
+      console.error("Backend connection failed:", error);
+      // Fallback to local baseline if backend is unreachable
+      setBaselineData(answers);
     }
   };
 

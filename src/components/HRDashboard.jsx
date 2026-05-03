@@ -1,12 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Activity, Brain, FileText, CheckCircle2, AlertTriangle, Clock, Target, EyeOff } from 'lucide-react';
+import { adminApi, authApi } from '../services/api';
 
 export default function HRDashboard2({ baseline, violations, liveEmotions }) {
   const [showReport, setShowReport] = useState(false);
-  const videoRef = useRef(null); // مرجع لعنصر الفيديو
+  const [allHistory, setAllHistory] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
+  const videoRef = useRef(null);
 
-  // تفعيل الكاميرا عند تحميل الصفحة
+  // Load HR data from backend on mount (HR role only)
+  useEffect(() => {
+    if (authApi.getRole() === 'HR') {
+      setLoadingData(true);
+      Promise.all([adminApi.getAllHistory(), adminApi.getAllUsers()])
+        .then(([history, users]) => {
+          setAllHistory(history || []);
+          setAllUsers(users || []);
+        })
+        .catch(err => console.warn('HR admin data unavailable:', err))
+        .finally(() => setLoadingData(false));
+    }
+  }, []);
+
+  // Enable camera
   useEffect(() => {
     async function enableCamera() {
       try {
@@ -20,7 +38,6 @@ export default function HRDashboard2({ baseline, violations, liveEmotions }) {
     }
     enableCamera();
 
-    // تنظيف البث عند إغلاق الصفحة
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
         videoRef.current.srcObject.getTracks().forEach(track => track.stop());
@@ -41,6 +58,11 @@ export default function HRDashboard2({ baseline, violations, liveEmotions }) {
           <p className="text-text-secondary text-sm flex items-center mt-1">
             <span className="w-2 h-2 rounded-full bg-success animate-pulse mr-2"></span>
             Real-time AI Interview Analysis
+            {allUsers.length > 0 && (
+              <span className="ml-3 bg-surface px-2 py-0.5 rounded-full text-xs border border-white/10">
+                {allUsers.length} users · {allHistory.length} records
+              </span>
+            )}
           </p>
         </div>
         <button onClick={() => setShowReport(true)} className="glass-button flex items-center space-x-2 bg-accent/20 hover:bg-accent/30 border-accent/30">
